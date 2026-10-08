@@ -3,8 +3,9 @@
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 import numpy as np
-from scipy import stats
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+from src.core.distribution import count_probabilities
 
 
 class ChartWidget(QWidget):
@@ -72,20 +73,14 @@ class ChartWidget(QWidget):
             self.clear("No daily counts available.")
             return
         maximum = max(1, int(counts.max()))
-        bins = min(maximum + 1, 50)
-        ax.hist(counts, bins=bins, density=True, alpha=0.35, color="#3979c6", label="Daily counts")
-        x = np.linspace(0, maximum + 1, 300)
-        distributions = {
-            "normal": stats.norm, "exponential": stats.expon, "weibull": stats.weibull_min,
-        }
+        observed, frequencies = np.unique(counts, return_counts=True)
+        ax.bar(observed, frequencies / len(counts), alpha=0.35, color="#3979c6", label="Daily counts")
+        x = np.unique(np.linspace(0, maximum + 1, min(maximum + 2, 300)).astype(int))
         for fit in window.fits:
-            if fit.name.lower() == "poisson":
-                integers = np.arange(maximum + 2)
-                ax.plot(integers, stats.poisson.pmf(integers, *fit.parameters), "o--", label=f"{fit.name} (AIC {fit.aic:.1f})")
-            elif fit.name.lower() in distributions:
-                ax.plot(x, distributions[fit.name.lower()].pdf(x, *fit.parameters), label=f"{fit.name} (AIC {fit.aic:.1f})")
+            probabilities = count_probabilities(fit.name, x, fit.parameters)
+            ax.plot(x, probabilities, "--", label=f"{fit.name} (AIC {fit.aic:.1f})")
         ax.set_title(f"{str(window.start)[:10]} – {str(window.end)[:10]} • best: {window.best_fit}")
         ax.set_xlabel("Matching events per day")
-        ax.set_ylabel("Density / probability mass")
+        ax.set_ylabel("Daily-count probability")
         ax.legend(fontsize="small")
         self.canvas.draw_idle()

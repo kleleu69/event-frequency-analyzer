@@ -1,6 +1,7 @@
 import math
 import struct
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from src.core import EventAnalyzer, FileLoadError, FileLoader, WordMatcher
-from src.core.distribution import analyze_windows, fit_distributions
+from src.core.distribution import analyze_windows, count_probabilities, fit_distributions
 from src.utils import parse_dates
 
 
@@ -18,7 +19,7 @@ ROOT = Path(__file__).parent
 class DateTests(unittest.TestCase):
     def test_mixed_dates_preserve_index(self):
         values = pd.Series(["2024-01-02", "03/02/2024", "February 4, 2024",
-                            45326, "bad", None, 123, 2024, "45326", True],
+                            45326, "bad", None, 123, 2024, "123", True],
                            index=list("abcdefghij"), name="date")
         result = parse_dates(values, day_first=True)
         self.assertEqual(result.index.tolist(), values.index.tolist())
@@ -43,6 +44,15 @@ class DateTests(unittest.TestCase):
     def test_empty_dates(self):
         self.assertEqual(str(parse_dates(pd.Series(dtype="object")).dtype),
                          "datetime64[ns]")
+
+    def test_compact_dates_and_numeric_ids(self):
+        values = pd.Series(["20240102", 20240203, 20240204.0, "20240230",
+                            20241301, 2024, 10000101, "2024", 1700000000])
+        result = parse_dates(values)
+        self.assertEqual(result.iloc[:3].tolist(), [
+            pd.Timestamp("2024-01-02"), pd.Timestamp("2024-02-03"),
+            pd.Timestamp("2024-02-04")])
+        self.assertTrue(result.iloc[3:].isna().all())
 
 
 class MatcherTests(unittest.TestCase):
@@ -93,6 +103,7 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(sheet.sheet, "CSV")
         self.assertEqual(sheet.date_candidates, ["date"])
         self.assertIn("description", sheet.text_candidates)
+        self.assertEqual(sheet.text_candidates[0], "description")
         self.assertEqual(len(sheet.frame), 4)
 
     def test_cp1252_semicolon_csv_and_blank_row_preservation(self):
@@ -101,7 +112,7 @@ class LoaderTests(unittest.TestCase):
         sheet = FileLoader().load(path)[0]
         self.assertEqual(sheet.frame.loc[0, "Description"], "café")
         self.assertEqual(len(sheet.frame), 3)
-        self.assertTrue(sheet.frame.iloc[1].isna().all())
+        self.assertTrue(sheet.frame.iloc[1].eq("").all())
         self.assertEqual(sheet.frame.index[-1], 2)
 
     def test_utf16_tab_and_utf8_bom(self):
@@ -156,6 +167,68 @@ class LoaderTests(unittest.TestCase):
         loaded = FileLoader.load(path)
         self.assertEqual(loaded[0].sheet, "Events")
         self.assertEqual(loaded[0].frame.loc[0, "Description"], "Legacy outage")
+
+    def test_text_candidates_prioritize_descriptions_over_dates(self):
+        path = self.path("_test_candidates.csv")
+        path.write_text(
+            "Date,Location,Details\n2024-01-01,London,An outage\n2024-02-01,Paris,A repair\n")
+        sheet = FileLoader.load(path)[0]
+        self.assertEqual(sheet.text_candidates, ["Details", "Location", "Date"])
+        path.write_text("Date,Location\n2024-01-01,London\n")
+        self.assertEqual(FileLoader.load(path)[0].text_candidates, ["Location", "Date"])
+
+    def test_compact_numeric_date_candidates_require_date_header(self):
+        frame = pd.DataFrame({"ID": ["20240101", "20240102"],
+                              "Date": ["20240101", "20240102"],
+                              "Number": [20240101, 20240102],
+                              "StartDate": [20240101, 20240102],
+                              "Description": ["first", "second"]})
+        with patch("src.core.file_loader.pd.read_excel", return_value={"Events": frame}):
+            loaded = FileLoader.load("compact.xlsx")[0]
+        self.assertEqual(loaded.date_candidates, ["Date", "StartDate"])
+        self.assertEqual(loaded.text_candidates[0], "Description")
+
+    def test_duplicate_headers_after_stringification(self):
+        frame = pd.DataFrame([["first", "second", "third", "fourth"]],
+                             columns=[1, "1", "1 (2)", "1"])
+        with patch("src.core.file_loader.pd.read_excel", return_value={"Events": frame}):
+            loaded = FileLoader.load("duplicates.xlsx")[0]
+        self.assertTrue(loaded.frame.columns.is_unique)
+        self.assertEqual(loaded.frame.iloc[0].tolist(), ["first", "second", "third", "fourth"])
+        self.assertEqual(len(loaded.text_candidates), 4)
+
+    def test_csv_literal_markers_and_leading_zeros_are_lossless(self):
+        path = self.path("_test_literals.csv")
+        path.write_text("Date,ID,Description\n45292,45292,NA\n20240102,20240102,NULL\n"
+                        ",20240103,N/A\nN/A,20240104,00123\n\n")
+        loaded = FileLoader.load(path)[0]
+        self.assertEqual(loaded.frame["Description"].tolist(),
+                         ["NA", "NULL", "N/A", "00123", ""])
+        self.assertEqual(loaded.frame.loc[0, "Date"], "45292")
+        self.assertEqual(loaded.date_candidates, ["Date"])
+        dates = parse_dates(loaded.frame["Date"])
+        self.assertEqual(dates.iloc[0], pd.Timestamp("2024-01-01"))
+        self.assertEqual(dates.iloc[1], pd.Timestamp("2024-01-02"))
+        self.assertTrue(dates.iloc[2:].isna().all())
+        self.assertTrue(all(isinstance(value, str)
+                            for value in loaded.frame["ID"]))
+
+    def test_excel_literal_markers_and_native_cells_are_lossless(self):
+        path = self.path("_test_excel_literals.xlsx")
+        original = pd.DataFrame({
+            "Date": [pd.Timestamp("2024-01-01"), 45293, "", "N/A"],
+            "ID": [45292, 45293, 45294, 45295],
+            "Description": ["NA", "NULL", "N/A", "00123"]})
+        original.to_excel(path, index=False)
+        loaded = FileLoader.load(path)[0]
+        self.assertEqual(loaded.frame["Description"].tolist(), original["Description"].tolist())
+        self.assertIsInstance(loaded.frame.loc[0, "Date"], datetime)
+        self.assertEqual(loaded.frame.loc[1, "Date"], 45293)
+        self.assertNotIn("ID", loaded.date_candidates)
+        dates = parse_dates(loaded.frame["Date"])
+        self.assertEqual(dates.iloc[:2].tolist(),
+                         [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02")])
+        self.assertTrue(dates.iloc[2:].isna().all())
 
     def test_safe_errors_and_empty_data(self):
         with self.assertRaisesRegex(FileLoadError, "not found"):
@@ -238,6 +311,41 @@ class AnalyzerTests(unittest.TestCase):
 
 
 class DistributionTests(unittest.TestCase):
+    def test_plot_probability_masses(self):
+        counts = np.arange(1000)
+        for name, parameters in [("Normal", (2.0, 1.0)), ("Poisson", (2.0,)),
+                                 ("Normal", (-4.0, 1.0)),
+                                 ("Exponential", (0.0, 2.0)),
+                                 ("Weibull", (1.5, 0.0, 2.0))]:
+            probabilities = count_probabilities(name, counts, parameters)
+            self.assertEqual(probabilities.shape, counts.shape)
+            self.assertTrue((probabilities >= 0).all())
+            self.assertAlmostEqual(probabilities.sum(), 1.0)
+            self.assertEqual(count_probabilities(name, [-1, 0.5], parameters).tolist(),
+                             [0.0, 0.0])
+        with self.assertRaises(ValueError):
+            count_probabilities("Unknown", counts, ())
+
+    def test_probability_tails_are_stable_and_nonnegative(self):
+        self.assertGreater(count_probabilities("Normal", [20], (0, 1))[0], 0)
+        self.assertGreater(count_probabilities("Exponential", [100], (0, 2))[0], 0)
+        from scipy import stats
+        expected_zero = ((stats.norm.cdf(0.5, 2, 1) - stats.norm.cdf(0, 2, 1))
+                         / stats.norm.sf(0, 2, 1))
+        self.assertAlmostEqual(count_probabilities("Normal", [0], (2, 1))[0],
+                               expected_zero)
+
+    def test_sparse_counts_compare_probability_masses_not_densities(self):
+        fits = fit_distributions([0] * 89 + [1])
+        self.assertEqual(fits[0].name, "Poisson")
+        for fit in fits:
+            parameter_count = 2 if fit.name in ("Normal", "Weibull") else 1
+            self.assertGreaterEqual(fit.aic, 2 * parameter_count)
+            self.assertTrue(np.isfinite(fit.parameters).all())
+            if fit.name != "Poisson":
+                self.assertIn("heuristic", fit.estimation)
+        self.assertEqual(fit_distributions([0.5, 1.5]), [])
+
     def test_calendar_windows_zero_days_and_fixed_baseline(self):
         dates = parse_dates(pd.Series(["2024-01-31", "2024-03-03", "2024-05-01"]))
         windows = analyze_windows(dates)
@@ -284,6 +392,10 @@ class DistributionTests(unittest.TestCase):
         from scipy import stats
         expected = 2 - 2 * stats.poisson.logpmf(sample, sample.mean()).sum()
         self.assertAlmostEqual(by_name["Poisson"].aic, expected)
+        for name, fit in by_name.items():
+            parameters_count = 2 if name in ("Normal", "Weibull") else 1
+            likelihood = np.log(count_probabilities(name, sample, fit.parameters)).sum()
+            self.assertAlmostEqual(fit.aic, 2 * parameters_count - 2 * likelihood)
         self.assertEqual([fit.aic for fit in fits], sorted(fit.aic for fit in fits))
         self.assertNotIn("Weibull", {fit.name for fit in fit_distributions([0, 1, 2])})
 

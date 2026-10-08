@@ -302,6 +302,7 @@ class MainWindow(QMainWindow):
         for index, window in enumerate(result.windows):
             details = "\n".join(
                 f"{fit.name}: AIC={fit.aic:.2f}, parameters={fit.parameters}"
+                f"\n{getattr(fit, 'estimation', '')}"
                 for fit in window.fits
             )
             self.window_table.item(index, 2).setToolTip(details or "No reliable fit")
@@ -318,6 +319,7 @@ class MainWindow(QMainWindow):
         )
         if result.windows:
             self.window_table.selectRow(0)
+            self.show_window_fit()
         else:
             self.fit_chart.clear("No complete three-month window.")
         self.tabs.setCurrentIndex(0)

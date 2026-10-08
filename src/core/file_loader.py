@@ -30,16 +30,34 @@ def _candidates(frame):
     dates, texts = [], []
     for column in frame.columns:
         values = frame[column].dropna()
+        values = values.loc[values.map(
+            lambda value: not isinstance(value, str) or bool(value.strip()))]
         if values.empty:
             continue
         sample = values.head(100)
         date_header = bool(re.search(r"date|time|timestamp", column, re.I))
-        numeric = all(isinstance(value, numbers.Number) for value in sample)
+        def numeric_value(value):
+            if isinstance(value, numbers.Number):
+                return True
+            if isinstance(value, str):
+                try:
+                    float(value.strip())
+                    return True
+                except ValueError:
+                    pass
+            return False
+
+        numeric = sum(numeric_value(value) for value in sample) / len(sample) >= 0.6
         ratio = parse_dates(sample).notna().mean()
         if ratio >= 0.6 and (date_header or not numeric):
             dates.append(column)
         if any(isinstance(value, str) for value in sample):
             texts.append(column)
+    description_header = re.compile(
+        r"description|details?|events?|remarks?|comments?|narrative|message|summary|notes?", re.I)
+    texts.sort(key=lambda column: (
+        0 if description_header.search(column) and column not in dates else
+        1 if column not in dates else 2))
     return dates, texts
 
 
@@ -71,15 +89,28 @@ class FileLoader:
                 except csv.Error:
                     delimiter = ","
                 sheets = {"CSV": pd.read_csv(io.StringIO(text), sep=delimiter,
-                                             skip_blank_lines=False)}
+                                             skip_blank_lines=False, dtype=object,
+                                             keep_default_na=False)}
             else:
                 sheets = pd.read_excel(file_path, sheet_name=None,
-                                       engine="xlrd" if suffix == ".xls" else "openpyxl")
+                                       engine="xlrd" if suffix == ".xls" else "openpyxl",
+                                       dtype=object, keep_default_na=False)
             result = []
             for name, frame in sheets.items():
-                if frame.empty or frame.dropna(how="all").empty:
+                if frame.empty or not (frame.notna() & frame.ne("")).any().any():
                     continue
-                frame.columns = [str(column) for column in frame.columns]
+                columns = []
+                seen = set()
+                for column in frame.columns:
+                    original = str(column)
+                    unique = original
+                    suffix_index = 2
+                    while unique in seen:
+                        unique = "{} ({})".format(original, suffix_index)
+                        suffix_index += 1
+                    columns.append(unique)
+                    seen.add(unique)
+                frame.columns = columns
                 date_candidates, text_candidates = _candidates(frame)
                 result.append(LoadedSheet(str(file_path), str(name), frame,
                                           date_candidates, text_candidates))

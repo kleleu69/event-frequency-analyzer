@@ -67,7 +67,10 @@ partial boundary months are treated as observed months. Missing days are assumed
 to be zero, so incomplete logs may distort results.
 
 Normal, Poisson, Exponential, and Weibull fits are ranked using AIC; unsupported
-or degenerate fits are omitted. Continuous laws approximate integer counts.
+or degenerate fits are omitted. Continuous laws approximate integer counts using
+probabilities over count bins, so their scores can be compared with Poisson.
+Continuous parameters are estimated on the raw counts, not optimized for the
+binned likelihood, so these AIC rankings are approximate.
 The selected law is a heuristic, not a guarantee of goodness of fit.
 Comparisons use two-sample tests and a multiple-comparison correction at 5%
 significance. Overlapping windows are dependent, and sparse counts, small

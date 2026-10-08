@@ -76,6 +76,14 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.rows_table.rowCount(), 0)
         self.assertEqual(self.window.window_table.rowCount(), 0)
 
+    def test_reanalysis_refreshes_selected_fit(self):
+        self.window.display_result(self.result())
+        next_result = self.result()
+        next_result.windows[0].best_fit = "Updated fit"
+        with patch.object(self.window.fit_chart, "plot_fit") as plot:
+            self.window.display_result(next_result)
+        plot.assert_called_with(next_result.windows[0])
+
     def test_column_suggestions_are_editable(self):
         sheet = SimpleNamespace(
             path="/tmp/example.csv", sheet="",
