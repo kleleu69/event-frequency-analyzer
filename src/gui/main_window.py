@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
         sidebar.addWidget(self.export_button)
         note = QLabel(
             "Each matching row counts once in charts. A row may contribute to multiple "
-            "wordset events. Double-click a matched row to inspect its original entry."
+            "event categories. Double-click an entry to inspect its original source."
         )
         note.setWordWrap(True)
         sidebar.addWidget(note)

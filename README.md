@@ -73,6 +73,9 @@ For example, cable installation completed, cable installation delayed, and a
 negated cable defect are different classifications. Local negation rules avoid
 counting a denied defect as a positive fault. Complex or conflicting clauses
 are routed to review rather than confidently combining unrelated statuses.
+Inspection and testing references to faults require an explicit affirmative
+finding, such as “defect detected”; otherwise they are retained for review
+instead of being counted as observed faults.
 
 - **Construction classifications** retains every input row with recognized
   fields, rule-based confidence, disposition, evidence, and source references.
@@ -99,9 +102,10 @@ Short acronyms are not fuzzily guessed. Fuzzy matches require review even when
 their spelling score is high. Confidence is a heuristic rule score, not a
 calibrated probability. This is not a general language model or an exhaustive
 construction ontology: adapt the aliases to your plant, contractors, languages,
-and alarm codes, and validate results against representative reports. Unknown
-languages and unfamiliar expressions remain visible for review; the application
-does not automatically learn from them or approve review entries.
+and alarm codes, and validate results against representative reports. Supporting
+another language also requires validating its negation and context rules, not
+just translating aliases. Unmatched expressions remain visible for review;
+the application does not automatically learn from them or approve review entries.
 
 No Electropedia text is scraped or bundled. The vocabulary is an original
 starter set, not IEC-certified terminology. Any future imported third-party

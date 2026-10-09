@@ -3,7 +3,8 @@
   "disciplines": {
     "civil works": ["civil works", "civil", "earthworks", "génie civil", "travaux civils", "GC", "concrete", "béton"],
     "structural steel": ["structural steel", "steelwork", "steel structure", "steel", "charpente métallique", "charpente", "STR"],
-    "mechanical piping": ["mechanical", "piping", "pipe", "pipes", "pipework", "tuyauterie", "tuyau", "tuyaux", "mécanique", "MECH", "PIP"],
+    "mechanical": ["mechanical", "mécanique", "MECH", "MEC", "pump", "pumps", "pompe", "pompes", "rotating equipment", "équipement mécanique"],
+    "piping": ["piping", "pipe", "pipes", "pipework", "tuyauterie", "tuyau", "tuyaux", "PIP"],
     "electrical": ["electrical", "electric", "électrique", "électricité", "cable", "cables", "câble", "câbles", "breaker", "circuit breaker", "disjoncteur", "switchgear", "transformer", "transformateur", "ELEC", "EL", "E&I"],
     "instrumentation": ["instrumentation", "instrument", "instruments", "sensor", "capteur", "transmitter", "transmetteur", "INST", "I&C"],
     "commissioning": ["commissioning", "pre commissioning", "precommissioning", "mise en service", "COM", "COMM"]
@@ -21,6 +22,7 @@
     "commissioning": ["commissioning", "precommissioning", "pre commissioning", "mise en service", "SAT", "FAT"],
     "loop checking": ["loop check", "loop checking", "loop checks", "test de boucle", "essai de boucle"],
     "pipe installation": ["pipe installation", "piping installation", "pipe fitting", "montage tuyauterie", "pose de tuyaux"],
+    "mechanical installation": ["mechanical installation", "equipment installation", "pump installation", "installation mécanique", "montage mécanique", "installation équipement", "installation d'équipement", "installation de pompe", "pose de pompe"],
     "concrete placement": ["concrete placement", "concrete pour", "concreting", "coulage béton", "bétonnage"]
   },
   "issues": {

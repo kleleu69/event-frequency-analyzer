@@ -97,6 +97,22 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(dialog.mapping()[2])
         dialog.close()
 
+    def test_mapping_preserves_unparseable_original_dates(self):
+        sheet = SimpleNamespace(
+            path="/tmp/events.csv", sheet="CSV",
+            frame=pd.DataFrame({
+                "reported": ["2024-01-01", "unknown date"],
+                "description": ["Cable installation completed", "Unfamiliar wording"],
+            }),
+        )
+        with patch("src.gui.main_window.ColumnMappingDialog") as dialog:
+            dialog.return_value.exec.return_value = ColumnMappingDialog.DialogCode.Accepted
+            dialog.return_value.mapping.return_value = ("reported", "description", False)
+            self.window.map_sources(([sheet], []))
+        self.assertEqual(self.window.records.loc[1, "original_date"], "unknown date")
+        self.assertTrue(pd.isna(self.window.records.loc[1, "date"]))
+        self.assertEqual(self.window.records.loc[1, "row"], 3)
+
     def test_export_neutralizes_formulas_and_keeps_all_rows(self):
         self.window.result = self.result()
         with TemporaryDirectory() as folder:
