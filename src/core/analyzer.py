@@ -1,6 +1,6 @@
 """Aggregate matched records while retaining source provenance."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 import pandas as pd
@@ -17,6 +17,8 @@ class AnalysisResult:
     top_events: pd.DataFrame
     windows: List[WindowResult]
     invalid_dates: int
+    classifications: pd.DataFrame = field(default_factory=pd.DataFrame)
+    review: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 class EventAnalyzer:
@@ -32,7 +34,10 @@ class EventAnalyzer:
         valid["description"] = valid["description"].fillna("").astype(str)
         valid["events"] = valid["description"].map(matcher.match)
         matched = valid.loc[valid["events"].map(bool)].copy()
+        return EventAnalyzer._aggregate(valid, matched, matcher.words, invalid_dates)
 
+    @staticmethod
+    def _aggregate(valid, matched, words, invalid_dates):
         def aggregate(frequency):
             if valid.empty:
                 return pd.Series([], index=pd.PeriodIndex([], freq=frequency, name="period"),
@@ -46,7 +51,7 @@ class EventAnalyzer:
             return result
 
         events = []
-        for word in matcher.words:
+        for word in words:
             occurrences = matched.loc[matched["events"].map(lambda items: word in items)]
             if not occurrences.empty:
                 first = occurrences.sort_values("date", kind="stable").iloc[0]

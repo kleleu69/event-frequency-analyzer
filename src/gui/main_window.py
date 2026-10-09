@@ -14,10 +14,11 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core.analyzer import EventAnalyzer
+from src.core.construction import ConstructionAnalyzer, ConstructionRecognizer, load_vocabulary
 from src.core.file_loader import FileLoader
 from src.core.matcher import WordMatcher
 from src.gui.charts import ChartWidget
-from src.gui.dialogs import ColumnMappingDialog
+from src.gui.dialogs import ColumnMappingDialog, VocabularyDialog
 from src.utils.dates import parse_dates
 
 
@@ -48,6 +49,7 @@ class MainWindow(QMainWindow):
         self.result = None
         self.thread = None
         self.worker = None
+        self.vocabulary = None
         self.setWindowTitle("Event Frequency Analyzer")
         self.resize(1220, 820)
         root = QWidget()
@@ -70,6 +72,13 @@ class MainWindow(QMainWindow):
         self.clear_button = QPushButton("Clear sources")
         self.clear_button.clicked.connect(self.clear_sources)
         sidebar.addWidget(self.clear_button)
+        self.recognition_mode = QComboBox()
+        self.recognition_mode.addItems(["Manual wordset", "Plant construction"])
+        sidebar.addWidget(QLabel("Analysis mode"))
+        sidebar.addWidget(self.recognition_mode)
+        self.dictionary_button = QPushButton("Edit construction dictionary…")
+        self.dictionary_button.clicked.connect(self.edit_dictionary)
+        sidebar.addWidget(self.dictionary_button)
         sidebar.addWidget(QLabel("Wordset — one word or phrase per line"))
         self.words = QTextEdit()
         self.words.setPlaceholderText("error\nlogin failed\ntimeout")
@@ -86,12 +95,22 @@ class MainWindow(QMainWindow):
         self.threshold.setToolTip("Minimum fuzzy similarity. Higher values are stricter.")
         self.threshold.setEnabled(False)
         self.mode.currentTextChanged.connect(
-            lambda mode: self.threshold.setEnabled(mode == "Fuzzy")
+            lambda mode: self.update_mode_controls()
         )
         form.addRow("Fuzzy similarity", self.threshold)
         self.case_sensitive = QCheckBox("Case-sensitive matching")
         form.addRow(self.case_sensitive)
         sidebar.addLayout(form)
+        self.construction_threshold = QSpinBox()
+        self.construction_threshold.setRange(70, 100)
+        self.construction_threshold.setValue(85)
+        self.construction_threshold.setSuffix("%")
+        self.construction_threshold.setToolTip(
+            "Minimum spelling similarity for construction suggestions. "
+            "Fuzzy suggestions always require review; this is not a probability."
+        )
+        form.addRow("Construction similarity", self.construction_threshold)
+        self.recognition_mode.currentTextChanged.connect(self.change_analysis_mode)
         self.analyze_button = QPushButton("Analyze events")
         self.analyze_button.setStyleSheet(
             "QPushButton { background: #285c91; color: white; padding: 10px; }"
@@ -132,10 +151,22 @@ class MainWindow(QMainWindow):
         ))
         self.rows_table = self.make_table(["Date", "Description", "Events", "File", "Sheet", "Row"])
         self.rows_table.cellDoubleClicked.connect(self.open_entry)
+        self.review_table = self.make_table([
+            "Date", "Description", "Discipline", "Activity", "Issue", "Status",
+            "Confidence", "Reason / evidence", "File", "Sheet", "Row",
+        ])
+        self.review_table.cellDoubleClicked.connect(self.open_review_entry)
+        self.classification_table = self.make_table([
+            "Date", "Description", "Discipline", "Activity", "Issue", "Status",
+            "Confidence", "Disposition", "Evidence", "File", "Sheet", "Row",
+        ])
+        self.classification_table.cellDoubleClicked.connect(self.open_classification_entry)
         for widget, name in (
             (self.monthly, "Monthly"), (self.quarterly, "Trimester"),
             (self.top_table, "Top 10 events"), (distribution_page, "Window comparisons"),
             (self.fit_chart, "Selected window fit"), (self.rows_table, "Matched entries"),
+            (self.classification_table, "Construction classifications"),
+            (self.review_table, "Needs review / unfamiliar"),
         ):
             self.tabs.addTab(widget, name)
         splitter.addWidget(self.tabs)
@@ -144,6 +175,7 @@ class MainWindow(QMainWindow):
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
         self.statusBar().showMessage("Ready")
+        self.update_mode_controls()
 
     @staticmethod
     def make_table(headers):
@@ -160,11 +192,49 @@ class MainWindow(QMainWindow):
         for widget in (
             self.load_button, self.clear_button, self.analyze_button,
             self.words, self.mode, self.case_sensitive,
+            self.recognition_mode, self.dictionary_button, self.construction_threshold,
         ):
             widget.setEnabled(not busy)
         self.threshold.setEnabled(not busy and self.mode.currentText() == "Fuzzy")
+        if not busy:
+            self.update_mode_controls()
+        elif self.is_construction_mode():
+            self.threshold.setEnabled(False)
         self.export_button.setEnabled(not busy and self.result is not None)
         self.statusBar().showMessage("Working…" if busy else "Ready")
+
+    def is_construction_mode(self):
+        return self.recognition_mode.currentText() == "Plant construction"
+
+    def update_mode_controls(self):
+        construction = self.is_construction_mode()
+        self.words.setEnabled(not construction)
+        self.mode.setEnabled(not construction)
+        self.case_sensitive.setEnabled(not construction)
+        self.threshold.setEnabled(not construction and self.mode.currentText() == "Fuzzy")
+        self.dictionary_button.setEnabled(construction)
+        self.construction_threshold.setEnabled(construction)
+        self.export_button.setText(
+            "Export all classifications…" if construction else "Export matched rows…"
+        )
+
+    def change_analysis_mode(self):
+        self.update_mode_controls()
+        self.invalidate_results()
+        self.summary.setText(
+            "Construction mode recognizes context without a wordset. Review uncertain entries."
+            if self.is_construction_mode() else "Enter your wordset and analyze the loaded sources."
+        )
+
+    def edit_dictionary(self):
+        try:
+            dialog = VocabularyDialog(self.vocabulary or load_vocabulary(), self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.vocabulary = dialog.vocabulary
+                self.invalidate_results()
+                self.summary.setText("Dictionary updated. Analyze again to apply changes.")
+        except (OSError, ValueError) as exc:
+            self.show_error(str(exc))
 
     def start_job(self, operation, on_success):
         if self.thread is not None:
@@ -227,6 +297,7 @@ class MainWindow(QMainWindow):
             date_column, description_column, day_first = dialog.mapping()
             frame = pd.DataFrame({
                 "date": parse_dates(sheet.frame[date_column], day_first=day_first),
+                "original_date": sheet.frame[date_column],
                 "description": sheet.frame[description_column].fillna("").astype(str),
                 "source": str(sheet.path),
                 "sheet": str(sheet.sheet),
@@ -251,7 +322,10 @@ class MainWindow(QMainWindow):
         self.export_button.setEnabled(False)
         for chart in (self.monthly, self.quarterly, self.distribution, self.fit_chart):
             chart.clear("Run an analysis to see results.")
-        for table in (self.top_table, self.window_table, self.rows_table):
+        for table in (
+            self.top_table, self.window_table, self.rows_table,
+            self.classification_table, self.review_table,
+        ):
             table.setRowCount(0)
 
     def clear_sources(self):
@@ -262,16 +336,28 @@ class MainWindow(QMainWindow):
 
     def analyze(self):
         words = [line.strip() for line in self.words.toPlainText().splitlines() if line.strip()]
-        if self.records is None or not words:
+        if self.records is None or (not self.is_construction_mode() and not words):
             self.show_error("Load at least one source and enter at least one word or phrase.")
             return
-        matcher = WordMatcher(
-            words, mode=self.mode.currentText().lower(),
-            threshold=self.threshold.value(), case_sensitive=self.case_sensitive.isChecked(),
-        )
+        try:
+            if self.is_construction_mode():
+                recognizer = ConstructionRecognizer(
+                    vocabulary=self.vocabulary, threshold=self.construction_threshold.value()
+                )
+                operation = lambda: ConstructionAnalyzer.analyze(records, recognizer)
+            else:
+                matcher = WordMatcher(
+                    words, mode=self.mode.currentText().lower(),
+                    threshold=self.threshold.value(), case_sensitive=self.case_sensitive.isChecked(),
+                )
+                operation = lambda: EventAnalyzer.analyze(records, matcher)
+        except (OSError, ValueError) as exc:
+            self.show_error(str(exc))
+            return
         records = self.records.copy()
+        self.invalidate_results()
         self.summary.setText("Analyzing the current sources and wordset…")
-        self.start_job(lambda: EventAnalyzer.analyze(records, matcher), self.display_result)
+        self.start_job(operation, self.display_result)
 
     @staticmethod
     def populate(table, rows):
@@ -317,6 +403,25 @@ class MainWindow(QMainWindow):
             "missing/unparseable dates excluded. Entry preview limited to 5,000 rows; export "
             "contains all matches."
         )
+        classifications = getattr(result, "classifications", pd.DataFrame())
+        review = getattr(result, "review", pd.DataFrame())
+        self.populate(self.classification_table, [
+            [str(r.date)[:10], r.description, r.discipline, r.activity, r.issue, r.status,
+             f"{r.confidence:.0%}", r.disposition, r.evidence, r.source, r.sheet, r.row]
+            for r in classifications.head(5000).itertuples()
+        ])
+        self.populate(self.review_table, [
+            [str(r.date)[:10], r.description, r.discipline, r.activity, r.issue, r.status,
+             f"{r.confidence:.0%}", f"{r.review_reason}\n{r.evidence}", r.source, r.sheet, r.row]
+            for r in review.head(5000).itertuples()
+        ])
+        if not classifications.empty:
+            self.summary.setText(
+                f"{len(result.matched):,} recognized rows in charts • "
+                f"{len(review):,} entries need review or have invalid dates. "
+                "Confidence is a rule-based score, not a probability. Tables show up to "
+                "5,000 rows each; export retains all classifications and source references."
+            )
         if result.windows:
             self.window_table.selectRow(0)
             self.show_window_fit()
@@ -337,6 +442,21 @@ class MainWindow(QMainWindow):
         if self.result is None or row >= len(self.result.matched):
             return
         record = self.result.matched.iloc[row]
+        self.show_source_entry(record)
+
+    def open_review_entry(self, row, column):
+        self.open_classified_entry("review", row)
+
+    def open_classification_entry(self, row, column):
+        self.open_classified_entry("classifications", row)
+
+    def open_classified_entry(self, field, row):
+        if self.result is not None:
+            frame = getattr(self.result, field, pd.DataFrame())
+            if 0 <= row < len(frame):
+                self.show_source_entry(frame.iloc[row])
+
+    def show_source_entry(self, record):
         QMessageBox.information(
             self, "Source entry",
             f"File: {record['source']}\nSheet: {record['sheet'] or 'CSV'}\n"
@@ -358,7 +478,8 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            exported = self.result.matched.copy()
+            classifications = getattr(self.result, "classifications", pd.DataFrame())
+            exported = (classifications if self.is_construction_mode() else self.result.matched).copy()
             exported["events"] = exported["events"].apply("; ".join)
             # Prevent spreadsheet formula execution when exported text is opened in Excel.
             for column in exported.select_dtypes(include=["object", "string"]).columns:

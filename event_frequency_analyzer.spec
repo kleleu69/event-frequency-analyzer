@@ -5,7 +5,7 @@ a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[("src/core/construction_vocabulary.json", "src/core")],
     hiddenimports=collect_submodules("scipy.stats") + ["openpyxl", "xlrd"],
     hookspath=[],
     hooksconfig={},

@@ -29,7 +29,7 @@ Linux requires a graphical desktop and the system libraries required by Qt
 2. Confirm the suggested date and description columns for each source using the
    preview. Different sources can have different schemas. Cancel skips that sheet.
    Enable day-first parsing for ambiguous dates such as `04/05/2024`.
-3. Enter one search word or phrase per line. Select:
+3. Choose **Manual wordset** and enter one search word or phrase per line. Select:
    - **Exact:** whole word/phrase boundaries, not equality with the entire cell.
    - **Partial:** substring matching.
    - **Fuzzy:** approximate matching with a minimum similarity from 0 to 100
@@ -41,7 +41,7 @@ Linux requires a graphical desktop and the system libraries required by Qt
 5. **Top 10 events** groups by your search words/phrases, showing counts, the
    first observed date, and an example description. One row can count towards
    multiple search terms. This is not an automatic semantic classification or
-   generated summary.
+   generated summary in manual mode.
 6. **Window comparisons** shows fitted laws and comparisons with the previous
    window and the first-window baseline. Select a row to inspect the histogram
    and candidate curves in **Selected window fit**. Fit parameters and AIC scores
@@ -57,6 +57,55 @@ numeric identifier or date format: confirm mappings and date ordering. Headers
 must occupy the first row; CSV delimiter/encoding detection is best-effort.
 Loading the same source sheet twice does not duplicate its rows; clear sources
 to reload a changed file. Source files are never modified.
+
+## Plant-construction recognition
+
+Choose **Plant construction** as the analysis mode, then click **Analyze events**.
+No wordset is required. The offline recognizer identifies discipline, activity,
+issue, and status independently, using a small original English/French starter
+dictionary and conservative context rules. It covers civil works, structural
+steel, mechanical installation, piping, electrical, instrumentation, and
+commissioning; construction activities, delays, missing materials, defects,
+rework, nonconformities, access constraints, and common electrical faults.
+Synonyms and selected abbreviations map to canonical categories.
+
+For example, cable installation completed, cable installation delayed, and a
+negated cable defect are different classifications. Local negation rules avoid
+counting a denied defect as a positive fault. Complex or conflicting clauses
+are routed to review rather than confidently combining unrelated statuses.
+
+- **Construction classifications** retains every input row with recognized
+  fields, rule-based confidence, disposition, evidence, and source references.
+- **Needs review / unfamiliar** retains fuzzy suggestions, ambiguous or
+  insufficient context, unfamiliar wording, and entries with invalid dates.
+- Charts and top-ten summaries include only confidently recognized rows with
+  valid dates, counting a row once per chart period. Event labels distinguish
+  the canonical context and status, not just a matched synonym.
+- **Export all classifications** preserves every row, including review items
+  and invalid dates, with the original file, sheet, and row reference. Tables
+  preview at most 5,000 rows each; exports are not limited.
+- Double-click a classification or review entry to inspect its source.
+
+**Edit construction dictionary** opens a JSON editor for aliases grouped under
+`disciplines`, `activities`, `issues`, and `statuses`. **Apply changes** validates
+and uses the dictionary for this session; **Save JSON copy** persists it to a
+file you choose. Import that copy in future sessions. Invalid schemas and
+conflicting aliases within one group are rejected. **Restore starter dictionary**
+restores the bundled vocabulary in the editor without modifying your saved file.
+The bundled JSON is packaged with the executable; no network access is needed.
+
+**Construction similarity** controls typo suggestions, not semantic similarity.
+Short acronyms are not fuzzily guessed. Fuzzy matches require review even when
+their spelling score is high. Confidence is a heuristic rule score, not a
+calibrated probability. This is not a general language model or an exhaustive
+construction ontology: adapt the aliases to your plant, contractors, languages,
+and alarm codes, and validate results against representative reports. Unknown
+languages and unfamiliar expressions remain visible for review; the application
+does not automatically learn from them or approve review entries.
+
+No Electropedia text is scraped or bundled. The vocabulary is an original
+starter set, not IEC-certified terminology. Any future imported third-party
+dictionary must be reviewed for accuracy and permitted reuse.
 
 ## Statistical interpretation
 
