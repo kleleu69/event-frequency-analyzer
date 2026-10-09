@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "disciplines": {
+    "civil works": ["civil works", "civil", "earthworks", "génie civil", "travaux civils", "GC", "concrete", "béton"],
+    "structural steel": ["structural steel", "steelwork", "steel structure", "steel", "charpente métallique", "charpente", "STR"],
+    "mechanical": ["mechanical", "mécanique", "MECH", "MEC", "pump", "pumps", "pompe", "pompes", "rotating equipment", "équipement mécanique"],
+    "piping": ["piping", "pipe", "pipes", "pipework", "tuyauterie", "tuyau", "tuyaux", "PIP"],
+    "electrical": ["electrical", "electric", "électrique", "électricité", "cable", "cables", "câble", "câbles", "breaker", "circuit breaker", "disjoncteur", "switchgear", "transformer", "transformateur", "ELEC", "EL", "E&I"],
+    "instrumentation": ["instrumentation", "instrument", "instruments", "sensor", "capteur", "transmitter", "transmetteur", "INST", "I&C"],
+    "commissioning": ["commissioning", "pre commissioning", "precommissioning", "mise en service", "COM", "COMM"]
+  },
+  "activities": {
+    "excavation": ["excavation", "excavating", "earthwork excavation", "terrassement", "fouille", "fouilles"],
+    "erection": ["erection", "erecting", "steel erection", "montage charpente", "levage"],
+    "welding": ["welding", "weld", "welds", "soudage", "soudure", "soudures"],
+    "cable installation": ["cable installation", "cable laying", "cable pulling", "cable routing", "installation of cable", "installation of cables", "cable installed", "cables installed", "pulling cable", "pose de câble", "pose de câbles", "pose câbles", "installation de câbles", "tirage de câble", "tirage de câbles", "tirage câbles", "câblage"],
+    "testing": ["testing", "test", "tests", "tested", "essai", "essais", "testé"],
+    "cable testing": ["cable testing", "cable test", "insulation testing", "insulation resistance test", "megger test", "IR test", "essai de câble", "test d'isolement"],
+    "inspection": ["inspection", "inspections", "inspected", "inspect", "contrôle", "contrôles", "vérification", "ITP", "NDT", "CND"],
+    "handover": ["handover", "hand over", "turnover", "réception", "remise", "transfert"],
+    "maintenance": ["maintenance", "entretien", "servicing"],
+    "commissioning": ["commissioning", "precommissioning", "pre commissioning", "mise en service", "SAT", "FAT"],
+    "loop checking": ["loop check", "loop checking", "loop checks", "test de boucle", "essai de boucle"],
+    "pipe installation": ["pipe installation", "piping installation", "pipe fitting", "montage tuyauterie", "pose de tuyaux"],
+    "mechanical installation": ["mechanical installation", "equipment installation", "pump installation", "installation mécanique", "montage mécanique", "installation équipement", "installation d'équipement", "installation de pompe", "pose de pompe"],
+    "concrete placement": ["concrete placement", "concrete pour", "concreting", "coulage béton", "bétonnage"]
+  },
+  "issues": {
+    "delay": ["delay", "delays", "delayed", "late delivery", "retard", "retards", "retardé", "reporté"],
+    "missing materials": ["missing materials", "material shortage", "materials shortage", "missing material", "missing cable", "missing cables", "missing parts", "matériel manquant", "manque de matériel", "rupture de stock"],
+    "defect": ["defect", "defects", "defective", "fault", "faults", "broken", "défaut", "défauts", "défectueux", "défaillance"],
+    "rework": ["rework", "reworked", "reprise", "reprises", "à refaire"],
+    "nonconformity": ["nonconformity", "nonconformities", "non conformity", "non conformities", "nonconformance", "non conformance", "non conformité", "non conformités", "NCR", "NC"],
+    "access constraint": ["access constraint", "access constraints", "restricted access", "access blocked", "no access", "accès bloqué", "accès restreint", "manque d'accès"],
+    "electrical fault": ["electrical fault", "electrical faults", "défaut électrique", "défauts électriques"],
+    "short circuit": ["short circuit", "short circuits", "court circuit", "courts circuits"],
+    "earth fault": ["earth fault", "ground fault", "défaut de terre", "défaut à la terre"],
+    "breaker trip": ["breaker trip", "breaker tripped", "tripped breaker", "circuit breaker trip", "disjoncteur déclenché", "déclenchement disjoncteur"],
+    "insulation failure": ["insulation failure", "insulation fault", "défaut d'isolement", "isolement défectueux"],
+    "power outage": ["power outage", "power loss", "loss of power", "coupure de courant", "panne électrique", "absence de tension"]
+  },
+  "statuses": {
+    "completed": ["completed", "complete", "finished", "done", "terminé", "terminée", "achevé", "achevée", "réalisé"],
+    "in progress": ["in progress", "ongoing", "underway", "en cours"],
+    "planned": ["planned", "scheduled", "prévu", "prévue", "planifié", "programmé"],
+    "pending": ["pending", "incomplete", "unfinished", "en attente", "inachevé"],
+    "delayed": ["delayed", "delay", "delays", "retard", "retardé", "reporté"],
+    "blocked": ["blocked", "on hold", "suspended", "bloqué", "bloquée", "suspendu"],
+    "resolved": ["resolved", "repaired", "fixed", "rectified", "résolu", "réparé", "corrigé"],
+    "failed": ["failed", "failure", "échec", "échoué"],
+    "passed": ["passed", "successful", "réussi", "conforme"]
+  }
+}
